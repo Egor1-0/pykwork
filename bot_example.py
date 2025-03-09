@@ -58,5 +58,4 @@ async def run():
     await bot.run_bot()
 
 
-loop = asyncio.get_event_loop()
-loop.run_until_complete(run())
+asyncio.run(run())
