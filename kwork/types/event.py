@@ -2,8 +2,8 @@ from pydantic import BaseModel
 
 
 class BaseEvent(BaseModel):
-    event: str = None
-    data: dict = None
+    event: str | None = ''
+    data: dict | None = None
 
 
 class EventType:

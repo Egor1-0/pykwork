@@ -1,27 +1,42 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
 
 
 class LastMessage(BaseModel):
-    unread: bool = None
-    fromUsername: str = None
-    fromUserId: int = None
-    type: str = None
-    time: int = None
-    message: str = None
+    unread: bool
+    fromUsername: str = ''
+    fromUserId: int = 0
+    message_type: str = Field(alias='type')
+    time: int = 0
+    message: str = ''
 
 
 class Dialog(BaseModel):
-    unread_count: int = None
-    last_message: str = None  # last_message text
-    time: int = None
-    user_id: int = None
-    username: str = None
-    profilepicture: str = None
-    link: str = None
-    status: str = None
-    blocked_by_user: bool = None
-    allowedDialog: bool = None
-    lastMessage: LastMessage = None  # object of last_message
-    has_active_order: bool = None
-    archived: bool = None
-    isStarred: bool = None
+    unread: bool
+    unread_count: int = 0
+    time: int = 0
+    user_id: int = 0
+    username: str | None = ''
+    last_message_text: str | None = ''
+    profile_picture: str | None = Field(None, alias='profilepicture')
+    is_online: bool
+    lastOnlineTime: int = 0
+    link: str | None = ''
+    status: str | None = ''
+    blocked_by_user: bool
+    allowed_dialog: bool = Field(alias='allowedDialog')
+    last_message: LastMessage | None = Field(None, alias='lastMessage')
+    has_active_order: bool
+    archived: bool
+    is_starred: bool = Field(0, alias='isStarred')
+    warning_message_id: int = 0
+    countup: int = 0
+    has_answer: bool
+    is_allow_custom_request: bool
+    hidden_at: int = 0
+    is_important: bool
+    moderation_status: str | None = None
+    draft: str | None = ''
+    disallow_reason: int = Field(0, alias='disallowReason')
+    active_orders: list[dict] | None = None
+    not_available_for_company: bool

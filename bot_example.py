@@ -7,6 +7,8 @@ logging.basicConfig(level=logging.INFO)
 
 bot = KworkBot(login="login", password="password")
 
+"""БОТ НЕ РАБОТАЕТ. Я ЕГО ПЕРЕПИСЫВАЮ"""
+
 
 # Можно использовать socks5 прокси
 # bot = KworkBot(login="login", password="password", proxy="socks5://64.90.53.198:46088")

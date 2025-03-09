@@ -1,21 +1,12 @@
-import json
 import logging
-import asyncio
 import urllib.parse
-import collections
-from typing import Optional, Union, Callable, List, NoReturn
 
-import websockets
 import aiohttp
 
-from .types import Message, Actor, EventType, BaseEvent, Notify, User, Connects, Category
-from kwork.exceptions import KworkException, KworkBotException
-from .types.all import InboxMessage, DialogMessage, WantWorker
+from .types import Actor, User, Connects, Category, Dialog, InboxMessage, Order
+from kwork.exceptions import KworkException
 
 logger = logging.getLogger(__name__)
-Handler = collections.namedtuple(
-    "Handler", ["func", "text", "on_start", "text_contains"]
-)
 
 
 class Kwork:
@@ -23,10 +14,10 @@ class Kwork:
             self,
             login: str,
             password: str,
-            proxy: Optional[str] = None,
-            phone_last: Optional[str] = None,
+            proxy: str | None = None,
+            phone_last: str | None = None,
     ):
-        connector: Optional[aiohttp.BaseConnector] = None
+        connector: aiohttp.BaseConnector | None = None
 
         if proxy is not None:
             try:
@@ -42,7 +33,7 @@ class Kwork:
         self.host = "https://api.kwork.ru/{}"
         self.login = login
         self.password = password
-        self._token: Optional[str] = None
+        self._token: str | None = None
         self.phone_last = phone_last
 
     @property
@@ -52,17 +43,17 @@ class Kwork:
         return self._token
 
     async def api_request(
-            self, method: str, api_method: str, **params
-    ) -> Union[dict, NoReturn]:
+        self, method: str, api_method: str, **params
+    ) -> dict:
         params = {k: v for k, v in params.items() if v is not None}
         logging.debug(
             f"making {method} request on /{api_method} with params - {params}"
         )
         async with self.session.request(
-                method=method,
-                url=self.host.format(api_method),
-                headers={"Authorization": "Basic bW9iaWxlX2FwaTpxRnZmUmw3dw=="},
-                params=params,
+            method=method,
+            url=self.host.format(api_method),
+            headers={"Authorization": "Basic bW9iaWxlX2FwaTpxRnZmUmw3dw=="},
+            params=params,
         ) as resp:
             if resp.content_type != "application/json":
                 error_text: str = await resp.text()
@@ -116,7 +107,6 @@ class Kwork:
         user = await self.api_request(
             method="post", api_method="user", id=user_id, token=await self.token
         )
-
         return User(**user["response"])
 
     async def set_typing(self, recipient_id: int) -> dict:
@@ -128,9 +118,9 @@ class Kwork:
         )
         return resp
 
-    async def get_all_dialogs(self) -> List[DialogMessage]:
+    async def get_all_dialogs(self) -> list[Dialog]:
         page = 1
-        dialogs: List[DialogMessage] = []
+        dialogs: list[Dialog] = []
 
         while True:
             dialogs_page = await self.api_request(
@@ -142,9 +132,8 @@ class Kwork:
             )
             if not dialogs_page["response"]:
                 break
-
             for dialog in dialogs_page["response"]:
-                dialogs.append(DialogMessage(**dialog))
+                dialogs.append(Dialog(**dialog))
             page += 1
 
         return dialogs
@@ -154,9 +143,9 @@ class Kwork:
             method="post", api_method="offline", token=await self.token
         )
 
-    async def get_dialog_with_user(self, user_name: str) -> List[InboxMessage]:
+    async def get_dialog_with_user(self, user_name: str) -> list[InboxMessage]:
         page = 1
-        dialog: List[InboxMessage] = []
+        dialog: list[InboxMessage] = []
 
         while True:
             messages_dict: dict = await self.api_request(
@@ -200,7 +189,7 @@ class Kwork:
             token=await self.token,
         )
 
-    async def get_categories(self) -> List[Category]:
+    async def get_categories(self) -> list[Category]:
         raw_categories = await self.api_request(
             method="post",
             api_method="categories",
@@ -214,25 +203,25 @@ class Kwork:
         return categories
 
     async def get_connects(self) -> Connects:
-        raw_projects = await self.api_request(
+        connects = await self.api_request(
             method="post",
             api_method="projects",
             categories="",
             token=await self.token,
         )
-        return Connects(**raw_projects["connects"])
+        return Connects(**connects["connects"])
 
     async def get_projects(
             self,
-            categories_ids: List[Union[int, str]],
-            price_from: Optional[int] = None,
-            price_to: Optional[int] = None,
-            hiring_from: Optional[int] = None,
-            kworks_filter_from: Optional[int] = None,
-            kworks_filter_to: Optional[int] = None,
-            page: Optional[int] = None,
-            query: Optional[str] = None,
-    ) -> List[WantWorker]:
+            categories_ids: list[int] | str | None = None,
+            price_from: int | None = None,
+            price_to: int | None = None,
+            hiring_from: int | None = None,
+            kworks_filter_from: int | None = None,
+            kworks_filter_to: int | None = None,
+            page: int | None = None,
+            query: str | None = None,
+    ) -> list[Order]:
         """
         categories_ids - Список ID рубрик через запятую, либо 'all' - для выборки по всем рубрикам.
          С пустым значением делает выборку по любимым рубрикам.
@@ -244,14 +233,13 @@ class Kwork:
         page - Страница выдачи
         query - Поисковая строка
         """
-        if 'fav' in categories_ids:
-            categories = await self.get_favorite_categories()
-            categories_ids = [category.id for category in categories]
+        if isinstance(categories_ids, list):
+            categories_ids = ",".join(str(category) for category in categories_ids)
 
         raw_projects = await self.api_request(
             method="post",
             api_method="projects",
-            categories=",".join(str(category) for category in categories_ids),
+            categories=categories_ids,
             price_from=price_from,
             price_to=price_to,
             hiring_from=hiring_from,
@@ -263,7 +251,7 @@ class Kwork:
         )
         projects = []
         for dict_project in raw_projects["response"]:
-            project = WantWorker(**dict_project)
+            project = Order(**dict_project)
             projects.append(project)
         return projects
 
@@ -273,7 +261,7 @@ class Kwork:
         )
         return channel["response"]["channel"]
 
-    async def send_message(self, user_id: int, text: str) -> dict:  # noqa
+    async def send_message(self, user_id: int, text: str) -> "json":  # noqa
         logging.debug(f"Sending message for {user_id} with text - {text}")
         resp = await self.api_request(
             method='post',
@@ -294,161 +282,160 @@ class Kwork:
             token=await self.token,
         )
 
-
-class KworkBot(Kwork):
-    def __init__(self, login: str, password: str, proxy: str = None):
-        super().__init__(login, password, proxy)
-        self._handlers: List[Handler] = []
-
-    async def listen_messages(self):
-        logger.info("Starting listen messages")
-        while True:
-            try:
-                channel = await self._get_channel()
-                uri = f"wss://notice.kwork.ru/ws/public/{channel}"
-                async with websockets.connect(uri) as websocket:
-                    try:
-                        data = await websocket.recv()
-                    except websockets.exceptions.ConnectionClosedError as e:
-                        logging.debug(f"Get {e}, reboot socket...")
-                        continue
-
-                    logging.debug(f"Get updates from websocket - {data}")
-
-                    json_event = json.loads(data)
-                    json_event_data = json.loads(json_event["text"])
-
-                    event: BaseEvent = BaseEvent(**json_event_data)
-                    if event.event in [EventType.IS_TYPING]:
-                        continue
-
-                    if event.event == EventType.NEW_MESSAGE:
-                        message: Message = Message(
-                            api=self,
-                            from_id=event.data["from"],
-                            text=event.data["inboxMessage"],
-                            to_user_id=event.data["to_user_id"],
-                            inbox_id=event.data["inbox_id"],
-                            title=event.data["title"],
-                            last_message=event.data["lastMessage"],
-                        )
-                        yield message
-                    elif (
-                            event.event == EventType.NOTIFY
-                            and event.data.get(Notify.NEW_MESSAGE) is not None
-                    ):
-                        if event.data.get("dialog_data") is None:
-                            dialogs_page = await self.api_request(
-                                method="post",
-                                api_method="dialogs",
-                                filter="all",
-                                page=1,
-                                token=await self.token,
-                            )
-                            last_dialog = DialogMessage(**dialogs_page["response"][0])
-
-                            from_id, text, to_user_id, inbox_id = (
-                                last_dialog.user_id,
-                                last_dialog.last_message,
-                                None,
-                                None,
-                            )
-                        else:
-                            # TODO: вынести логику
-                            message_raw: InboxMessage = (
-                                await self.get_dialog_with_user(
-                                    event.data["dialog_data"][0]["login"]
-                                )
-                            )[0]
-
-                            from_id, text, to_user_id, inbox_id = (
-                                message_raw.from_id,
-                                message_raw.message,
-                                message_raw.to_id,
-                                message_raw.message_id,
-                            )
-                        message: Message = Message(
-                            api=self,
-                            from_id=from_id,
-                            text=text,
-                            to_user_id=to_user_id,
-                            inbox_id=inbox_id,
-                        )
-                        yield message
-
-                    elif event.event == EventType.POP_UP_NOTIFY:
-                        message_raw: InboxMessage = (
-                            await self.get_dialog_with_user(
-                                event.data["pop_up_notify"]["data"]["username"]
-                            )
-                        )[0]
-                        message: Message = Message(
-                            api=self,
-                            from_id=message_raw.from_id,
-                            text=message_raw.message,
-                            to_user_id=message_raw.to_id,
-                            inbox_id=message_raw.message_id,
-                        )
-                        yield message
-            except KworkException as e:
-                logging.error(f"Get error in polling - {e}, restarting")
-                await asyncio.sleep(10)
-
-    @staticmethod
-    def _dispatch_text_contains(text, message_text) -> bool:
-        lower_text = [word.lower() for word in message_text.split()]
-        for word in lower_text:
-            if text == word.strip("...").strip("!").strip(".").strip("?").strip("-"):
-                return True
-        return False
-
-    async def _dispatch_message(
-            self, message: Message, handler: Handler
-    ) -> Optional[Callable]:
-        if not any([handler.on_start, handler.text, handler.text_contains]):
-            return handler.func
-
-        if handler.on_start:
-            from_username = (await self.get_all_dialogs())[0].username
-            current_dialog = await self.get_dialog_with_user(from_username)
-            if len(current_dialog) == 1:
-                return handler.func
-        elif (
-                handler is not None
-                and handler.text is not None
-                and handler.text.lower() == message.text.lower()
-        ):
-            return handler.func
-        elif handler.text_contains is not None and self._dispatch_text_contains(
-                handler.text_contains, message.text
-        ):
-            return handler.func
-        return None
-
-    def message_handler(
-            self, text: str = None, on_start: bool = False, text_contains: str = None
-    ):
-        """
-        :param text: answer on exact match of message
-        :param on_start: answer only on fist message in dialog
-        :param text_contains: answer if message contains this text
-        :return:
-        """
-
-        def decorator(func: Callable) -> Callable:
-            handler = Handler(func, text, on_start, text_contains)
-            self._handlers.append(handler)
-            return func
-
-        return decorator
-
-    async def run_bot(self):
-        if not self._handlers:
-            raise KworkBotException("You have to create handler")
-        logging.info("Bot is running!")
-        async for message in self.listen_messages():
-            for handler in self._handlers:
-                handler_func = await self._dispatch_message(message, handler)
-                logger.debug(f"Found handler - {handler_func}")
-                if handler_func is not None:
-                    await handler_func(message)
+# class KworkBot(Kwork):
+#     def __init__(self, login: str, password: str, proxy: str = None):
+#         super().__init__(login, password, proxy)
+#         self._handlers: List[Handler] = []
+#
+#     async def listen_messages(self):
+#         logger.info("Starting listen messages")
+#         while True:
+#             try:
+#                 channel = await self._get_channel()
+#                 uri = f"wss://notice.kwork.ru/ws/public/{channel}"
+#                 async with websockets.connect(uri) as websocket:
+#                     try:
+#                         data = await websocket.recv()
+#                     except websockets.exceptions.ConnectionClosedError as e:
+#                         logging.debug(f"Get {e}, reboot socket...")
+#                         continue
+#
+#                     logging.debug(f"Get updates from websocket - {data}")
+#
+#                     json_event = json.loads(data)
+#                     json_event_data = json.loads(json_event["text"])
+#
+#                     event: BaseEvent = BaseEvent(**json_event_data)
+#                     if event.event in [EventType.IS_TYPING]:
+#                         continue
+#
+#                     if event.event == EventType.NEW_MESSAGE:
+#                         message: Message = Message(
+#                             api=self,
+#                             from_id=event.data["from"],
+#                             text=event.data["inboxMessage"],
+#                             to_user_id=event.data["to_user_id"],
+#                             inbox_id=event.data["inbox_id"],
+#                             title=event.data["title"],
+#                             last_message=event.data["lastMessage"],
+#                         )
+#                         yield message
+#                     elif (
+#                             event.event == EventType.NOTIFY
+#                             and event.data.get(Notify.NEW_MESSAGE) is not None
+#                     ):
+#                         if event.data.get("dialog_data") is None:
+#                             dialogs_page = await self.api_request(
+#                                 method="post",
+#                                 api_method="dialogs",
+#                                 filter="all",
+#                                 page=1,
+#                                 token=await self.token,
+#                             )
+#                             last_dialog = Dialog(**dialogs_page["response"][0])
+#
+#                             from_id, text, to_user_id, inbox_id = (
+#                                 last_dialog.user_id,
+#                                 last_dialog.last_message,
+#                                 None,
+#                                 None,
+#                             )
+#                         else:
+#                             # TODO: вынести логику
+#                             message_raw: InboxMessage = (
+#                                 await self.get_dialog_with_user(
+#                                     event.data["dialog_data"][0]["login"]
+#                                 )
+#                             )[0]
+#
+#                             from_id, text, to_user_id, inbox_id = (
+#                                 message_raw.from_id,
+#                                 message_raw.message,
+#                                 message_raw.to_id,
+#                                 message_raw.message_id,
+#                             )
+#                         message: Message = Message(
+#                             api=self,
+#                             from_id=from_id,
+#                             text=text,
+#                             to_user_id=to_user_id,
+#                             inbox_id=inbox_id,
+#                         )
+#                         yield message
+#
+#                     elif event.event == EventType.POP_UP_NOTIFY:
+#                         message_raw: InboxMessage = (
+#                             await self.get_dialog_with_user(
+#                                 event.data["pop_up_notify"]["data"]["username"]
+#                             )
+#                         )[0]
+#                         message: Message = Message(
+#                             api=self,
+#                             from_id=message_raw.from_id,
+#                             text=message_raw.message,
+#                             to_user_id=message_raw.to_id,
+#                             inbox_id=message_raw.message_id,
+#                         )
+#                         yield message
+#             except KworkException as e:
+#                 logging.error(f"Get error in polling - {e}, restarting")
+#                 await asyncio.sleep(10)
+#
+#     @staticmethod
+#     def _dispatch_text_contains(text, message_text) -> bool:
+#         lower_text = [word.lower() for word in message_text.split()]
+#         for word in lower_text:
+#             if text == word.strip("...").strip("!").strip(".").strip("?").strip("-"):
+#                 return True
+#         return False
+#
+#     async def _dispatch_message(
+#             self, message: Message, handler: Handler
+#     ) -> Optional[Callable]:
+#         if not any([handler.on_start, handler.text, handler.text_contains]):
+#             return handler.func
+#
+#         if handler.on_start:
+#             from_username = (await self.get_all_dialogs())[0].username
+#             current_dialog = await self.get_dialog_with_user(from_username)
+#             if len(current_dialog) == 1:
+#                 return handler.func
+#         elif (
+#                 handler is not None
+#                 and handler.text is not None
+#                 and handler.text.lower() == message.text.lower()
+#         ):
+#             return handler.func
+#         elif handler.text_contains is not None and self._dispatch_text_contains(
+#                 handler.text_contains, message.text
+#         ):
+#             return handler.func
+#         return None
+#
+#     def message_handler(
+#             self, text: str = None, on_start: bool = False, text_contains: str = None
+#     ):
+#         """
+#         :param text: answer on exact match of message
+#         :param on_start: answer only on fist message in dialog
+#         :param text_contains: answer if message contains this text
+#         :return:
+#         """
+#
+#         def decorator(func: Callable) -> Callable:
+#             handler = Handler(func, text, on_start, text_contains)
+#             self._handlers.append(handler)
+#             return func
+#
+#         return decorator
+#
+#     async def run_bot(self):
+#         if not self._handlers:
+#             raise KworkBotException("You have to create handler")
+#         logging.info("Bot is running!")
+#         async for message in self.listen_messages():
+#             for handler in self._handlers:
+#                 handler_func = await self._dispatch_message(message, handler)
+#                 logger.debug(f"Found handler - {handler_func}")
+#                 if handler_func is not None:
+#                     await handler_func(message)

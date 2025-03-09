@@ -1,38 +1,43 @@
-from pydantic import BaseModel
-import typing
 import asyncio
 
+from pydantic import BaseModel
 
-class MessageModel(BaseModel):
-    message_id: int = None
-    to_id: int = None
-    to_username: str = None
-    to_live_date: int = None
-    from_id: int = None
-    from_username: str = None
-    from_live_date: int = None
-    from_profilepicture: str = None
-    message: str = None
-    time: int = None
-    unread: bool = None
-    type: typing.Optional[str] = None
-    status: str = None
-    created_order_id: typing.Optional[str] = None
-    forwarded: bool = None
-    updated_at: typing.Optional[int] = None
-    message_page: int = None
+
+class InboxMessage(BaseModel):
+    message_id: int = 0
+    to_id: int = 0
+    to_username: str | None = None
+    to_live_date: int = 0
+    from_id: int = 0
+    from_username: str | None = None
+    from_live_date: int = 0
+    from_profilepicture: str | None = None
+    to_profilepicture: str | None = None
+    manager_name: str | None = ''
+    message: str | None = ''
+    time: int = 0
+    unread: bool
+    type: str | None = None
+    status: str | None = None
+    created_order_id: int | None = 0
+    forwarded: bool
+    updated_at: int | None = 0
+    warning_type: str | None = None
+    countup: int = 0
+    conversation_id: int = 0
+    message_page: int = 0
 
 
 class Message:
     def __init__(
-        self,
-        api,
-        from_id: int,
-        text: str,
-        to_user_id: typing.Optional[int] = None,
-        inbox_id: typing.Optional[int] = None,
-        last_message: typing.Optional[dict] = None,
-        title: typing.Optional[str] = None,
+            self,
+            api,
+            from_id: int,
+            text: str,
+            to_user_id: int = 0,
+            inbox_id: int = 0,
+            last_message: dict | None = None,
+            title: str | None = '',
     ):
         self.api = api
         self.from_id = from_id
@@ -50,7 +55,7 @@ class Message:
         """
         await asyncio.sleep(2)
         await self.api.set_typing(self.from_id)
-        await asyncio.sleep(2)
+        await asyncio.sleep(len(text) // 4)
         await self.api.send_message(self.from_id, text=text)
 
     async def fast_answer(self, text: str):

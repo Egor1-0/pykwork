@@ -1,24 +1,22 @@
-import typing
-
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 
 
 class Subcategory(BaseModel):
-    id: int = None
-    name: str = None
-    description: typing.Optional[str] = None
-
-
-def normalize_subcategories(subcategories: typing.List[dict]):
-    return [Subcategory(**dict_category) for dict_category in subcategories]
+    id: int = 0
+    name: str = ''
+    description: str | None = None
 
 
 class Category(BaseModel):
-    id: int = None
-    name: str = None
-    description: typing.Optional[str] = None
-    subcategories: typing.List[typing.Union[dict, Subcategory]] = None
+    id: int = 0
+    name: str = ''
+    description: str | None = ''
+    subcategories: list[Subcategory] | None = None
 
-    _normalize_subcategories = validator("subcategories", allow_reuse=True)(
-        normalize_subcategories
-    )
+    @field_validator('subcategories', mode='before')
+    @classmethod
+    def normalize_subcategories(cls, subcategories):
+        if subcategories is None:
+            return None
+
+        return [Subcategory(**dict_category) for dict_category in subcategories]
