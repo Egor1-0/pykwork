@@ -117,7 +117,7 @@ class Kwork:
             method="post", api_method="user", id=user_id, token=await self.token
         )
 
-        return User.parse_obj(user["response"])
+        return User(**user["response"])
 
     async def set_typing(self, recipient_id: int) -> dict:
         resp = await self.api_request(
