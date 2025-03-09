@@ -3,14 +3,14 @@ import logging
 import asyncio
 import urllib.parse
 import collections
-from typing import Optional, Union
+from typing import Optional, Union, Callable, List, NoReturn
 
 import websockets
 import aiohttp
 
-from .types import Message, Actor, EventType, BaseEvent, Notify
-from .types.all import *
+from .types import Message, Actor, EventType, BaseEvent, Notify, User, Connects, Category
 from kwork.exceptions import KworkException, KworkBotException
+from .types.all import InboxMessage, DialogMessage, WantWorker
 
 logger = logging.getLogger(__name__)
 Handler = collections.namedtuple(
@@ -23,10 +23,10 @@ class Kwork:
             self,
             login: str,
             password: str,
-            proxy: typing.Optional[str] = None,
-            phone_last: typing.Optional[str] = None,
+            proxy: Optional[str] = None,
+            phone_last: Optional[str] = None,
     ):
-        connector: typing.Optional[aiohttp.BaseConnector] = None
+        connector: Optional[aiohttp.BaseConnector] = None
 
         if proxy is not None:
             try:
@@ -42,7 +42,7 @@ class Kwork:
         self.host = "https://api.kwork.ru/{}"
         self.login = login
         self.password = password
-        self._token: typing.Optional[str] = None
+        self._token: Optional[str] = None
         self.phone_last = phone_last
 
     @property
@@ -53,7 +53,7 @@ class Kwork:
 
     async def api_request(
             self, method: str, api_method: str, **params
-    ) -> typing.Union[dict, typing.NoReturn]:
+    ) -> Union[dict, NoReturn]:
         params = {k: v for k, v in params.items() if v is not None}
         logging.debug(
             f"making {method} request on /{api_method} with params - {params}"
@@ -116,7 +116,8 @@ class Kwork:
         user = await self.api_request(
             method="post", api_method="user", id=user_id, token=await self.token
         )
-        return User(**user["response"])
+
+        return User.parse_obj(user["response"])
 
     async def set_typing(self, recipient_id: int) -> dict:
         resp = await self.api_request(
@@ -127,9 +128,9 @@ class Kwork:
         )
         return resp
 
-    async def get_all_dialogs(self) -> typing.List[DialogMessage]:
+    async def get_all_dialogs(self) -> List[DialogMessage]:
         page = 1
-        dialogs: typing.List[DialogMessage] = []
+        dialogs: List[DialogMessage] = []
 
         while True:
             dialogs_page = await self.api_request(
@@ -153,9 +154,9 @@ class Kwork:
             method="post", api_method="offline", token=await self.token
         )
 
-    async def get_dialog_with_user(self, user_name: str) -> typing.List[InboxMessage]:
+    async def get_dialog_with_user(self, user_name: str) -> List[InboxMessage]:
         page = 1
-        dialog: typing.List[InboxMessage] = []
+        dialog: List[InboxMessage] = []
 
         while True:
             messages_dict: dict = await self.api_request(
@@ -199,7 +200,7 @@ class Kwork:
             token=await self.token,
         )
 
-    async def get_categories(self) -> typing.List[Category]:
+    async def get_categories(self) -> List[Category]:
         raw_categories = await self.api_request(
             method="post",
             api_method="categories",
@@ -223,7 +224,7 @@ class Kwork:
 
     async def get_projects(
             self,
-            categories_ids: typing.List[Union[int, str]],
+            categories_ids: List[Union[int, str]],
             price_from: Optional[int] = None,
             price_to: Optional[int] = None,
             hiring_from: Optional[int] = None,
@@ -231,7 +232,7 @@ class Kwork:
             kworks_filter_to: Optional[int] = None,
             page: Optional[int] = None,
             query: Optional[str] = None,
-    ) -> typing.List[WantWorker]:
+    ) -> List[WantWorker]:
         """
         categories_ids - Список ID рубрик через запятую, либо 'all' - для выборки по всем рубрикам.
          С пустым значением делает выборку по любимым рубрикам.
@@ -297,7 +298,7 @@ class Kwork:
 class KworkBot(Kwork):
     def __init__(self, login: str, password: str, proxy: str = None):
         super().__init__(login, password, proxy)
-        self._handlers: typing.List[Handler] = []
+        self._handlers: List[Handler] = []
 
     async def listen_messages(self):
         logger.info("Starting listen messages")
@@ -403,7 +404,7 @@ class KworkBot(Kwork):
 
     async def _dispatch_message(
             self, message: Message, handler: Handler
-    ) -> typing.Optional[typing.Callable]:
+    ) -> Optional[Callable]:
         if not any([handler.on_start, handler.text, handler.text_contains]):
             return handler.func
 
@@ -434,7 +435,7 @@ class KworkBot(Kwork):
         :return:
         """
 
-        def decorator(func: typing.Callable) -> typing.Callable:
+        def decorator(func: Callable) -> Callable:
             handler = Handler(func, text, on_start, text_contains)
             self._handlers.append(handler)
             return func
