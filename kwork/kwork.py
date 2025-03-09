@@ -20,11 +20,11 @@ Handler = collections.namedtuple(
 
 class Kwork:
     def __init__(
-        self,
-        login: str,
-        password: str,
-        proxy: typing.Optional[str] = None,
-        phone_last: typing.Optional[str] = None,
+            self,
+            login: str,
+            password: str,
+            proxy: typing.Optional[str] = None,
+            phone_last: typing.Optional[str] = None,
     ):
         connector: typing.Optional[aiohttp.BaseConnector] = None
 
@@ -52,17 +52,17 @@ class Kwork:
         return self._token
 
     async def api_request(
-        self, method: str, api_method: str, **params
+            self, method: str, api_method: str, **params
     ) -> typing.Union[dict, typing.NoReturn]:
         params = {k: v for k, v in params.items() if v is not None}
         logging.debug(
             f"making {method} request on /{api_method} with params - {params}"
         )
         async with self.session.request(
-            method=method,
-            url=self.host.format(api_method),
-            headers={"Authorization": "Basic bW9iaWxlX2FwaTpxRnZmUmw3dw=="},
-            params=params,
+                method=method,
+                url=self.host.format(api_method),
+                headers={"Authorization": "Basic bW9iaWxlX2FwaTpxRnZmUmw3dw=="},
+                params=params,
         ) as resp:
             if resp.content_type != "application/json":
                 error_text: str = await resp.text()
@@ -85,6 +85,22 @@ class Kwork:
             phone_last=self.phone_last,
         )
         return resp["response"]["token"]
+
+    async def logout(self) -> None:
+        await self.api_request(
+            method="post",
+            api_method="logout",
+            token=await self.token
+        )
+        await self.close()
+
+    async def get_favorite_categories(self) -> list[Category]:
+        categories = await self.api_request(
+            method="post",
+            api_method="favoriteCategories",
+            token=await self.token
+        )
+        return [Category(**category) for category in categories["response"]]
 
     async def get_me(self) -> Actor:
         actor = await self.api_request(
@@ -206,15 +222,15 @@ class Kwork:
         return Connects(**raw_projects["connects"])
 
     async def get_projects(
-        self,
-        categories_ids: typing.List[Union[int, str]],
-        price_from: Optional[int] = None,
-        price_to: Optional[int] = None,
-        hiring_from: Optional[int] = None,
-        kworks_filter_from: Optional[int] = None,
-        kworks_filter_to: Optional[int] = None,
-        page: Optional[int] = None,
-        query: Optional[str] = None,
+            self,
+            categories_ids: typing.List[Union[int, str]],
+            price_from: Optional[int] = None,
+            price_to: Optional[int] = None,
+            hiring_from: Optional[int] = None,
+            kworks_filter_from: Optional[int] = None,
+            kworks_filter_to: Optional[int] = None,
+            page: Optional[int] = None,
+            query: Optional[str] = None,
     ) -> typing.List[WantWorker]:
         """
         categories_ids - Список ID рубрик через запятую, либо 'all' - для выборки по всем рубрикам.
@@ -227,6 +243,9 @@ class Kwork:
         page - Страница выдачи
         query - Поисковая строка
         """
+        if 'fav' in categories_ids:
+            categories = await self.get_favorite_categories()
+            categories_ids = [category.id for category in categories]
 
         raw_projects = await self.api_request(
             method="post",
@@ -255,11 +274,12 @@ class Kwork:
 
     async def send_message(self, user_id: int, text: str) -> dict:  # noqa
         logging.debug(f"Sending message for {user_id} with text - {text}")
-        resp = await self.session.post(
-            f"{self.host.format('inboxCreate')}"
-            f"?user_id={user_id}"
-            f"&text={urllib.parse.quote(text)}&token={await self.token}",
-            headers={"Authorization": "Basic bW9iaWxlX2FwaTpxRnZmUmw3dw=="},
+        resp = await self.api_request(
+            method='post',
+            api_method='inboxCreate',
+            user_id=user_id,
+            text=urllib.parse.quote(text),
+            token=await self.token,
         )
         json_resp = await resp.json()
         logging.debug(f"result of sending - {json_resp}")
@@ -313,8 +333,8 @@ class KworkBot(Kwork):
                         )
                         yield message
                     elif (
-                        event.event == EventType.NOTIFY
-                        and event.data.get(Notify.NEW_MESSAGE) is not None
+                            event.event == EventType.NOTIFY
+                            and event.data.get(Notify.NEW_MESSAGE) is not None
                     ):
                         if event.data.get("dialog_data") is None:
                             dialogs_page = await self.api_request(
@@ -382,7 +402,7 @@ class KworkBot(Kwork):
         return False
 
     async def _dispatch_message(
-        self, message: Message, handler: Handler
+            self, message: Message, handler: Handler
     ) -> typing.Optional[typing.Callable]:
         if not any([handler.on_start, handler.text, handler.text_contains]):
             return handler.func
@@ -393,19 +413,19 @@ class KworkBot(Kwork):
             if len(current_dialog) == 1:
                 return handler.func
         elif (
-            handler is not None
-            and handler.text is not None
-            and handler.text.lower() == message.text.lower()
+                handler is not None
+                and handler.text is not None
+                and handler.text.lower() == message.text.lower()
         ):
             return handler.func
         elif handler.text_contains is not None and self._dispatch_text_contains(
-            handler.text_contains, message.text
+                handler.text_contains, message.text
         ):
             return handler.func
         return None
 
     def message_handler(
-        self, text: str = None, on_start: bool = False, text_contains: str = None
+            self, text: str = None, on_start: bool = False, text_contains: str = None
     ):
         """
         :param text: answer on exact match of message
