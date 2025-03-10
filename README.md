@@ -37,7 +37,7 @@ pip install kwork
 Пример простого api запроса:
 
 ```python3
-from kwork import Kwork
+from kwork import KworkClient
 from kwork.types import Actor
 import logging
 import asyncio
@@ -46,11 +46,12 @@ logging.basicConfig(level=logging.INFO)
 
 
 async def main():
-    api = Kwork(login="login", password="password")
+    api = KworkClient(login="login", password="password")
     me: Actor = await api.get_me()
     # Получение своего профиля
     print(me)
     await api.close()
+
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main())
@@ -122,7 +123,7 @@ Kwork может банить по ip, но в основном pykwork пред
 использовать бота - воспользуйтесь прокси (socks5/socks4):
 
 ```python3
-from kwork import Kwork
+from kwork import KworkClient
 from kwork.types import User, Actor
 import logging
 import asyncio
@@ -131,12 +132,13 @@ logging.basicConfig(level=logging.INFO)
 
 
 async def main():
-    api = Kwork(login="login", password="password", proxy="socks5://208.113.220.250:3420")
+    api = KworkClient(login="login", password="password", proxy="socks5://208.113.220.250:3420")
 
     me: Actor = await api.get_me()
     print(me)
 
     await api.close()
+
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main())

@@ -1,1 +1,2 @@
-from .kwork import Kwork
+from .client import KworkClient
+from .bot import Dispatcher

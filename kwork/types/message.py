@@ -1,6 +1,6 @@
 import asyncio
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class InboxMessage(BaseModel):
@@ -27,6 +27,15 @@ class InboxMessage(BaseModel):
     conversation_id: int = 0
     message_page: int = 0
 
+
+class LastMessage(BaseModel):
+    unread: bool
+    from_username: str = Field(alias='fromUsername')
+    from_user_id: int = Field(alias='fromUserId')
+    type_message: str = Field(alias='type')
+    time: int
+    message: str | None = ''
+    profile_picture: str | None = Field(None, alias='profilePicture')
 
 class Message:
     def __init__(

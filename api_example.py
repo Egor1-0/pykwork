@@ -1,4 +1,4 @@
-from kwork import Kwork
+from kwork import KworkClient
 from kwork.types import Actor, User, Connects
 import logging
 import asyncio
@@ -7,7 +7,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 async def main():
-    api = Kwork(login="login", password="password")
+    api = KworkClient(login="login", password="password")
 
     # Если "Необходимо ввести последние 4 цифры номера телефона."
     # api = Kwork(login="login", password="password", phone_last="0102")
